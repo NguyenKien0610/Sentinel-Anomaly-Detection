@@ -6,3 +6,7 @@ numpy
 pytest
 pydantic
 httpx
+sqlalchemy
+asyncpg
+psycopg2-binary
+prometheus-client
