@@ -1,0 +1,10 @@
+{
+  "active_version": "20260531T151527Z-816e0e2a",
+  "updated_at": "2026-05-31T15:15:27.577606Z",
+  "metadata_path": "models/registry/20260531T151527Z-816e0e2a/metadata.json",
+  "artifacts": {
+    "model": "models/registry/20260531T151527Z-816e0e2a/model.pkl",
+    "scaler": "models/registry/20260531T151527Z-816e0e2a/scaler.pkl",
+    "monitoring_baseline": "models/registry/20260531T151527Z-816e0e2a/monitoring_baseline.json"
+  }
+}

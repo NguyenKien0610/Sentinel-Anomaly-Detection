@@ -1,0 +1,60 @@
+{
+  "model_version": "20260531T150617Z-816e0e2a",
+  "created_at": "2026-05-31T15:06:17.488972Z",
+  "dataset": {
+    "path": "data/server_metrics.csv",
+    "sha256": "816e0e2a5356b3b09d356925cd9a0fe1d327e3b350e9336d26ee3e650c72e112",
+    "row_count": 132481,
+    "column_count": 26,
+    "numeric_column_count": 25,
+    "rows_used_for_training": 132481,
+    "dropped_na_rows": 0,
+    "removed_timestamp_columns": [
+      "timestamp_(min)"
+    ]
+  },
+  "features": [
+    "feature_15",
+    "feature_16",
+    "feature_19",
+    "feature_20",
+    "feature_9"
+  ],
+  "training": {
+    "random_seed": 42,
+    "feature_selection_strategy": "seeded_shuffle_take_first_5_numeric_columns",
+    "model_type": "IsolationForest",
+    "model_params": {
+      "bootstrap": false,
+      "contamination": "auto",
+      "max_features": 1.0,
+      "max_samples": "auto",
+      "n_estimators": 100,
+      "n_jobs": null,
+      "random_state": 42,
+      "verbose": 0,
+      "warm_start": false
+    },
+    "scaler_type": "StandardScaler",
+    "anomaly_ratio_on_training_data": 0.15083672375661417,
+    "decision_function_summary": {
+      "min": -0.2358167013204846,
+      "max": 0.11520714096627571,
+      "mean": 0.048208108596836254,
+      "p05": -0.05144475167678053,
+      "p95": 0.1024958502374948
+    }
+  },
+  "artifacts": {
+    "model": "models/registry/20260531T150617Z-816e0e2a/model.pkl",
+    "scaler": "models/registry/20260531T150617Z-816e0e2a/scaler.pkl",
+    "monitoring_baseline": "models/registry/20260531T150617Z-816e0e2a/monitoring_baseline.json"
+  },
+  "sample_payload": {
+    "feature_15": 0.3187968986906816,
+    "feature_16": 0.4518560659934575,
+    "feature_19": 0.6098826098826098,
+    "feature_20": 0.0084317032040472,
+    "feature_9": 0.4470765464645514
+  }
+}
