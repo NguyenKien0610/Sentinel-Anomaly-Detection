@@ -15,17 +15,19 @@ The current project includes:
 - Retraining metadata for reproducibility and rollback
 - Health and readiness probes
 - Structured JSON logging with request tracing
+- Redis Stream queue with a dedicated PostgreSQL writer worker
 - Pre-provisioned Grafana dashboard for ML monitoring
-- Docker Compose orchestration for API, PostgreSQL, Prometheus, and Grafana
+- Docker Compose orchestration for API, worker, PostgreSQL, Redis, Prometheus, and Grafana
 
 ## Architecture
 
 1. `src/train.py` reads `data/server_metrics.csv`, removes timestamp columns, keeps numeric columns, selects 5 features, scales them with `StandardScaler`, trains `IsolationForest`, creates a versioned model bundle under `models/registry/`, and updates `models/current_model.json`.
 2. Each model bundle stores the model, scaler, monitoring baseline, and training metadata such as dataset hash, selected features, model parameters, anomaly ratio, sample payload, and training library versions.
 3. `src/main.py` wires the application layers together, resolves the active model from the registry manifest, serves the frontend, and exposes API endpoints.
-4. `POST /api/v1/analyze` validates the payload, scales the input, runs anomaly detection, increments Prometheus counters, and writes the request plus prediction into PostgreSQL in a background task.
-5. Alembic manages schema evolution for PostgreSQL, and Docker Compose runs `alembic upgrade head` before starting the API container.
-6. Prometheus scrapes `GET /metrics`, while Grafana auto-loads a dashboard for request volume, anomaly rate, latency, drift metrics, and active model behavior.
+4. `POST /api/v1/analyze` validates the payload, scales the input, runs anomaly detection, increments Prometheus counters, and enqueues prediction-log events into Redis Stream.
+5. `src.workers.prediction_log_worker` consumes Redis Stream events in batches and writes prediction logs to PostgreSQL outside the API request path.
+6. Alembic manages schema evolution for PostgreSQL, and Docker Compose runs `alembic upgrade head` before starting the API container.
+7. Prometheus scrapes `GET /metrics`, while Grafana auto-loads a dashboard for request volume, anomaly rate, latency, drift metrics, and active model behavior.
 
 ## Tech Stack
 
@@ -37,6 +39,7 @@ The current project includes:
 - SQLAlchemy async
 - asyncpg
 - PostgreSQL
+- Redis Streams
 - Prometheus
 - Grafana
 - Docker / Docker Compose
@@ -62,7 +65,9 @@ sentinel/
 |   |-- api/
 |   |-- core/
 |   |-- db/
+|   |-- middleware/
 |   |-- services/
+|   |-- workers/
 |   |-- database.py
 |   |-- main.py
 |   |-- models_db.py
@@ -147,11 +152,13 @@ Available services:
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000` (`admin` / `admin`)
 - PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
 
 The API container receives:
 
 ```text
 DATABASE_URL=postgresql+asyncpg://sentinel:sentinel_password@db:5432/sentinel_db
+REDIS_URL=redis://redis:6379/0
 ```
 
 The API service runs migrations automatically on startup:
@@ -234,6 +241,27 @@ Current tests cover:
 - Valid prediction request returns `200`
 - Missing required fields returns `422`
 - Invalid field types returns `422`
+
+## Benchmarking
+
+Run the k6 benchmark against the Docker Compose stack:
+
+```bash
+docker compose up --build -d
+k6 run --summary-export benchmarks/results/analyze-load-test-summary.json benchmarks/analyze-load-test.js
+```
+
+Latest local benchmark result for `POST /api/v1/analyze`:
+
+- Load profile: 20 virtual users for 60 seconds
+- Total requests: 4,505
+- Throughput: 75.0 requests/second
+- Error rate: 0.00%
+- Latency: p95 247ms, p99 293ms
+
+The benchmark validates response status, prediction field presence, and `X-Request-ID` tracing header on every request.
+
+This benchmark uses the Redis-backed worker architecture, where the API enqueues prediction-log events and a separate worker writes them to PostgreSQL.
 
 ## Observability
 
