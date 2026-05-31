@@ -1,70 +1,88 @@
-# 🛡️ Sentinel: Server Anomaly Detection API
+# Sentinel
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
-[![scikit-learn](https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+Sentinel is a FastAPI-based anomaly detection service for server telemetry. It uses an Isolation Forest model trained on the Pooled Server Metrics (PSM) dataset, exposes an inference API, persists prediction logs to PostgreSQL asynchronously, and publishes Prometheus metrics for observability, input drift monitoring, and model lifecycle tracking.
 
-A lightweight, production-ready Machine Learning API service designed to analyze real-time system metrics (CPU, RAM, Network) and predict server anomalies to safeguard against potential infrastructure overloads.
+The current project includes:
 
-This project was built using the **Pooled Server Metrics (PSM)** dataset (eBay telemetry data) and implements an Unsupervised Machine Learning model (**Isolation Forest**).
+- Offline training with `scikit-learn`
+- Real-time inference with FastAPI
+- A built-in web UI at `/`
+- Async PostgreSQL logging with SQLAlchemy
+- Alembic database migrations
+- Prometheus metrics at `/metrics`
+- Drift monitoring against training baselines
+- Local model registry with active-version manifest
+- Retraining metadata for reproducibility and rollback
+- Health and readiness probes
+- Structured JSON logging with request tracing
+- Pre-provisioned Grafana dashboard for ML monitoring
+- Docker Compose orchestration for API, PostgreSQL, Prometheus, and Grafana
 
-## 🏗️ System Architecture
-1. **Model Training:** An offline script processes raw telemetry data, scales features, and trains an Isolation Forest model to isolate anomalous data points (saved as `.pkl` artifacts).
-2. **Inference API:** A high-performance FastAPI server loads the artifacts into memory and exposes a RESTful endpoint for real-time, low-latency predictions.
+## Architecture
 
-## 🚀 Features
-* **Unsupervised Learning:** Utilizes `scikit-learn`'s Isolation Forest.
-* **High Performance:** Built with FastAPI and Uvicorn for asynchronous request handling.
-* **Data Validation:** Strict payload validation using Pydantic schemas.
-* **Test Coverage:** Automated unit testing suite implemented with `Pytest`.
-* **Containerized:** Fully deployable via Docker with an optimized, lightweight image layer caching strategy.
+1. `src/train.py` reads `data/server_metrics.csv`, removes timestamp columns, keeps numeric columns, selects 5 features, scales them with `StandardScaler`, trains `IsolationForest`, creates a versioned model bundle under `models/registry/`, and updates `models/current_model.json`.
+2. Each model bundle stores the model, scaler, monitoring baseline, and training metadata such as dataset hash, selected features, model parameters, anomaly ratio, sample payload, and training library versions.
+3. `src/main.py` wires the application layers together, resolves the active model from the registry manifest, serves the frontend, and exposes API endpoints.
+4. `POST /api/v1/analyze` validates the payload, scales the input, runs anomaly detection, increments Prometheus counters, and writes the request plus prediction into PostgreSQL in a background task.
+5. Alembic manages schema evolution for PostgreSQL, and Docker Compose runs `alembic upgrade head` before starting the API container.
+6. Prometheus scrapes `GET /metrics`, while Grafana auto-loads a dashboard for request volume, anomaly rate, latency, drift metrics, and active model behavior.
 
-## ⚙️ Local Installation & Setup
+## Tech Stack
 
-### Option 1: Running with Docker (Recommended)
-Ensure you have Docker installed. No Python environment setup is required.
+- Python 3.10+
+- FastAPI
+- scikit-learn (pinned)
+- pandas (pinned)
+- numpy (pinned)
+- SQLAlchemy async
+- asyncpg
+- PostgreSQL
+- Prometheus
+- Grafana
+- Docker / Docker Compose
 
-```bash
-# 1. Clone the repository
-git clone [https://github.com/NguyenKien0610/Sentinel-Anomaly-Detection.git](https://github.com/NguyenKien0610/Sentinel-Anomaly-Detection.git)
-cd Sentinel-Anomaly-Detection
+## Project Layout
 
-# 2. Build the Docker image
-docker build -t sentinel-api .
-
-# 3. Run the container
-docker run -d -p 8000:8000 sentinel-api
-
+```text
+sentinel/
+|-- data/
+|   `-- server_metrics.csv
+|-- models/
+|   |-- current_model.json
+|   |-- isolation_forest.pkl
+|   |-- monitoring_baseline.json
+|   |-- registry/
+|   `-- scaler.pkl
+|-- grafana/
+|   |-- dashboards/
+|   `-- provisioning/
+|-- alembic/
+|   `-- versions/
+|-- src/
+|   |-- api/
+|   |-- core/
+|   |-- db/
+|   |-- services/
+|   |-- database.py
+|   |-- main.py
+|   |-- models_db.py
+|   |-- schemas.py
+|   |-- train.py
+|   `-- static/
+|       `-- index.html
+|-- tests/
+|   `-- test_api.py
+|-- docker-compose.yml
+|-- Dockerfile
+|-- prometheus.yml
+`-- requirements.txt
 ```
 
-### Option 2: Running with Python Venv
+## API Contract
 
-```bash
-# 1. Clone and navigate to the directory
-git clone [https://github.com/NguyenKien0610/Sentinel-Anomaly-Detection.git](https://github.com/NguyenKien0610/Sentinel-Anomaly-Detection.git)
-cd Sentinel-Anomaly-Detection
+### `POST /api/v1/analyze`
 
-# 2. Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Start the FastAPI server
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-
-```
-
-## 📡 API Usage
-
-Once the server is running, the interactive API documentation (Swagger UI) is available at:
-👉 **http://localhost:8000/docs**
-
-### Endpoint: `POST /api/v1/analyze`
-
-**Request Payload:**
+Request body:
 
 ```json
 {
@@ -74,29 +92,179 @@ Once the server is running, the interactive API documentation (Swagger UI) is av
   "feature_20": 0.0084317032040472,
   "feature_9": 0.4470765464645514
 }
-
 ```
 
-**Response Payload:**
+Response body:
 
 ```json
 {
   "status": "success",
   "prediction": "Anomaly",
-  "timestamp": "2026-05-26T12:00:00Z"
+  "timestamp": "2026-05-28T08:16:00.495383Z"
 }
-
 ```
 
-## 🧪 Running Tests
+Other useful endpoints:
 
-To execute the automated test suite (requires local Python environment):
+- `GET /` serves the frontend UI
+- `GET /docs` serves Swagger UI
+- `GET /healthz` returns liveness status
+- `GET /readyz` returns readiness checks for model, drift baseline, and database
+- `GET /metrics` exposes Prometheus metrics
+- `GET /api/v1/monitoring/drift` returns current drift-monitoring status
+- `GET /api/v1/model/info` returns the active model version and training metadata
+
+## Database Schema
+
+Table: `prediction_logs`
+
+- `id` - integer primary key
+- `feature_15` - float
+- `feature_16` - float
+- `feature_19` - float
+- `feature_20` - float
+- `feature_9` - float
+- `prediction` - string (`Normal` or `Anomaly`)
+- `timestamp` - datetime
+
+The schema is managed by Alembic. The initial migration creates `prediction_logs` and records the revision in `alembic_version`.
+
+## Local Run
+
+### Option 1: Docker Compose
+
+This is the default way to run the full stack.
 
 ```bash
-python -m pytest tests/test_api.py -v
-
+docker compose up --build
 ```
 
-## 📄 License
+Available services:
+
+- API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- Frontend: `http://localhost:8000/`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (`admin` / `admin`)
+- PostgreSQL: `localhost:5432`
+
+The API container receives:
+
+```text
+DATABASE_URL=postgresql+asyncpg://sentinel:sentinel_password@db:5432/sentinel_db
+```
+
+The API service runs migrations automatically on startup:
+
+```bash
+alembic upgrade head
+```
+
+### Option 2: Local Python Environment
+
+You need PostgreSQL running separately and must provide `DATABASE_URL`.
+
+Windows PowerShell:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:DATABASE_URL="postgresql+asyncpg://sentinel:sentinel_password@localhost:5432/sentinel_db"
+uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Linux/macOS:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+export DATABASE_URL="postgresql+asyncpg://sentinel:sentinel_password@localhost:5432/sentinel_db"
+uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+## Model Training
+
+To retrain the model from `data/server_metrics.csv`:
+
+```bash
+python src/train.py
+```
+
+The script updates:
+
+- `models/current_model.json`
+- `models/isolation_forest.pkl`
+- `models/scaler.pkl`
+- `models/monitoring_baseline.json`
+- `models/registry/<model_version>/model.pkl`
+- `models/registry/<model_version>/scaler.pkl`
+- `models/registry/<model_version>/monitoring_baseline.json`
+- `models/registry/<model_version>/metadata.json`
+
+It also prints the new `model_version` plus a sample JSON payload for API testing.
+
+The direct dependencies are pinned in [requirements.txt](E:/Project/sentinel/requirements.txt) so the training path and Docker runtime stay aligned for the ML stack.
+
+The active manifest looks like this at a high level:
+
+```json
+{
+  "active_version": "20260531T150617Z-816e0e2a",
+  "metadata_path": "models/registry/20260531T150617Z-816e0e2a/metadata.json",
+  "artifacts": {
+    "model": "models/registry/20260531T150617Z-816e0e2a/model.pkl",
+    "scaler": "models/registry/20260531T150617Z-816e0e2a/scaler.pkl",
+    "monitoring_baseline": "models/registry/20260531T150617Z-816e0e2a/monitoring_baseline.json"
+  }
+}
+```
+
+## Testing
+
+Run the API tests with:
+
+```bash
+py -m pytest -q
+```
+
+Current tests cover:
+
+- Valid prediction request returns `200`
+- Missing required fields returns `422`
+- Invalid field types returns `422`
+
+## Observability
+
+Prometheus scrapes the API every 5 seconds using `prometheus.yml`.
+
+Current monitoring metrics include:
+
+- `total_requests_total`
+- `anomaly_detected_total`
+- `prediction_label_total`
+- `request_latency_seconds`
+- `input_drift_score`
+- `drift_alert_total`
+- `feature_abs_zscore`
+- `feature_input_value`
+
+## Logging And Tracing
+
+The API emits structured JSON logs to stdout. Each request gets an `X-Request-ID` header, and the same request id is attached to access logs and inference-related application logs.
+
+This makes it easier to:
+
+- trace a single request across logs
+- correlate client-side errors with backend events
+- ship logs into systems such as Loki, Elasticsearch, or Datadog later
+
+## Notes
+
+- `src/main.py` currently uses FastAPI `@app.on_event("startup")`. It works, but FastAPI now recommends lifespan handlers for new code.
+- The project now uses a cleaner backend split across `core`, `db`, `services`, and `api`, while keeping `src.main:app` as the runtime entrypoint.
+
+## License
 
 This project is licensed under the MIT License.
