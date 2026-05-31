@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sentinel | Anomaly Detection Console</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+
+    :root {
+      --bg: #f5f7f2;
+      --surface: rgba(255, 255, 255, 0.82);
+      --surface-border: #d8ddcf;
+      --ink: #12201a;
+      --muted: #4d5f57;
+      --accent: #0f766e;
+      --accent-strong: #115e59;
+      --ok: #0e9f6e;
+      --bad: #dc2626;
+      --ring: rgba(15, 118, 110, 0.22);
+      --shadow: 0 30px 70px rgba(24, 54, 43, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Space Grotesk", "Avenir Next", "Trebuchet MS", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 18%, #d4f7e8 0%, transparent 38%),
+        radial-gradient(circle at 85% 8%, #d9efff 0%, transparent 36%),
+        linear-gradient(130deg, #f5f7f2 0%, #edf3ee 52%, #eaf0f4 100%);
+      padding: 32px 16px;
+    }
+
+    .orb {
+      position: fixed;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      filter: blur(40px);
+      opacity: 0.3;
+      z-index: -1;
+      animation: float 9s ease-in-out infinite;
+    }
+
+    .orb-a {
+      background: #a7f3d0;
+      top: -80px;
+      left: -80px;
+    }
+
+    .orb-b {
+      background: #bfdbfe;
+      right: -90px;
+      bottom: -100px;
+      animation-delay: 1.5s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) translateX(0px); }
+      50% { transform: translateY(18px) translateX(10px); }
+    }
+
+    .app {
+      width: min(980px, 100%);
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+      animation: reveal 420ms ease both;
+    }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .header {
+      padding: 26px 26px 16px;
+      background: linear-gradient(105deg, #072f2b 0%, #134e4a 75%);
+      color: #ecfeff;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 2.4vw, 2rem);
+      letter-spacing: 0.02em;
+    }
+
+    .header p {
+      margin: 10px 0 0;
+      color: #a7f3d0;
+      font-size: 0.95rem;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 22px;
+      padding: 24px;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid #dde4d6;
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    input {
+      border: 1px solid #cdd7c7;
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 0.95rem;
+      color: var(--ink);
+      background: #fcfffc;
+      transition: border-color 130ms ease, box-shadow 130ms ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--ring);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 11px;
+      padding: 11px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:active {
+      transform: translateY(1px) scale(0.995);
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #ecfeff;
+    }
+
+    .primary:hover {
+      filter: brightness(1.05);
+    }
+
+    .ghost {
+      background: #e7f6f4;
+      color: #0d5450;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      min-height: 22px;
+    }
+
+    .result-box {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .badge {
+      width: fit-content;
+      padding: 9px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .badge.normal {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge.anomaly {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .kv {
+      display: grid;
+      gap: 8px;
+      font-family: "IBM Plex Mono", "Consolas", monospace;
+      font-size: 0.86rem;
+      color: #30463e;
+    }
+
+    .kv-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px dashed #d7dfd3;
+      padding-bottom: 4px;
+    }
+
+    .json {
+      background: #f2faf7;
+      border: 1px solid #dbe9df;
+      border-radius: 12px;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "IBM Plex Mono", "Consolas", monospace;
+      font-size: 0.83rem;
+      margin: 0;
+      color: #1e3f35;
+    }
+
+    @media (max-width: 900px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="orb orb-a" aria-hidden="true"></div>
+  <div class="orb orb-b" aria-hidden="true"></div>
+
+  <main class="app">
+    <section class="header">
+      <h1>Sentinel Anomaly Console</h1>
+      <p>Real-time prediction UI for your Isolation Forest API</p>
+    </section>
+
+    <section class="content">
+      <article class="panel">
+        <h2>Input Features</h2>
+        <form id="analyze-form">
+          <div class="grid">
+            <div class="field">
+              <label for="feature_15">feature_15</label>
+              <input id="feature_15" name="feature_15" type="number" step="any" required>
+            </div>
+            <div class="field">
+              <label for="feature_16">feature_16</label>
+              <input id="feature_16" name="feature_16" type="number" step="any" required>
+            </div>
+            <div class="field">
+              <label for="feature_19">feature_19</label>
+              <input id="feature_19" name="feature_19" type="number" step="any" required>
+            </div>
+            <div class="field">
+              <label for="feature_20">feature_20</label>
+              <input id="feature_20" name="feature_20" type="number" step="any" required>
+            </div>
+            <div class="field">
+              <label for="feature_9">feature_9</label>
+              <input id="feature_9" name="feature_9" type="number" step="any" required>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Analyze</button>
+            <button class="ghost" type="button" id="fill-sample">Fill Sample</button>
+          </div>
+          <p id="status" class="status"></p>
+        </form>
+      </article>
+
+      <article class="panel result-box">
+        <h2>Result</h2>
+        <div id="prediction-badge" class="badge">Waiting</div>
+        <div class="kv">
+          <div class="kv-line"><span>Status</span><strong id="status-value">-</strong></div>
+          <div class="kv-line"><span>Timestamp (UTC)</span><strong id="time-value">-</strong></div>
+          <div class="kv-line"><span>Latency</span><strong id="latency-value">-</strong></div>
+        </div>
+        <h2>Payload Sent</h2>
+        <pre id="payload-preview" class="json">{}</pre>
+        <h2>Raw Response</h2>
+        <pre id="response-preview" class="json">{}</pre>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("analyze-form");
+    const statusEl = document.getElementById("status");
+    const payloadPreview = document.getElementById("payload-preview");
+    const responsePreview = document.getElementById("response-preview");
+    const badge = document.getElementById("prediction-badge");
+    const statusValue = document.getElementById("status-value");
+    const timeValue = document.getElementById("time-value");
+    const latencyValue = document.getElementById("latency-value");
+    const fillSampleBtn = document.getElementById("fill-sample");
+
+    const featureNames = ["feature_15", "feature_16", "feature_19", "feature_20", "feature_9"];
+    const samplePayload = {
+      feature_15: 0.3187968986906816,
+      feature_16: 0.4518560659934575,
+      feature_19: 0.6098826098826098,
+      feature_20: 0.0084317032040472,
+      feature_9: 0.4470765464645514
+    };
+
+    fillSampleBtn.addEventListener("click", () => {
+      featureNames.forEach((name) => {
+        const input = document.getElementById(name);
+        input.value = samplePayload[name];
+      });
+      statusEl.textContent = "Sample values applied.";
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      statusEl.textContent = "Analyzing...";
+      badge.className = "badge";
+      badge.textContent = "Working";
+
+      const payload = {};
+      for (const name of featureNames) {
+        const raw = document.getElementById(name).value;
+        payload[name] = Number(raw);
+      }
+
+      payloadPreview.textContent = JSON.stringify(payload, null, 2);
+
+      const startedAt = performance.now();
+      try {
+        const response = await fetch("/api/v1/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        const endedAt = performance.now();
+        latencyValue.textContent = `${(endedAt - startedAt).toFixed(1)} ms`;
+        responsePreview.textContent = JSON.stringify(data, null, 2);
+
+        if (!response.ok) {
+          statusEl.textContent = "Request failed.";
+          statusValue.textContent = "error";
+          timeValue.textContent = "-";
+          badge.className = "badge anomaly";
+          badge.textContent = "Error";
+          return;
+        }
+
+        const prediction = data.prediction || "Unknown";
+        const isAnomaly = prediction.toLowerCase() === "anomaly";
+        badge.className = isAnomaly ? "badge anomaly" : "badge normal";
+        badge.textContent = prediction;
+        statusValue.textContent = data.status || "-";
+        timeValue.textContent = data.timestamp || "-";
+        statusEl.textContent = "Completed.";
+      } catch (error) {
+        latencyValue.textContent = "-";
+        statusValue.textContent = "error";
+        timeValue.textContent = "-";
+        responsePreview.textContent = JSON.stringify({ error: String(error) }, null, 2);
+        badge.className = "badge anomaly";
+        badge.textContent = "Error";
+        statusEl.textContent = "Cannot reach API.";
+      }
+    });
+  </script>
+</body>
+</html>

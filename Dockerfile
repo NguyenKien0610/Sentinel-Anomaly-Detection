@@ -7,6 +7,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy runtime artifacts only.
+COPY alembic.ini .
+COPY alembic/ ./alembic/
 COPY src/ ./src/
 COPY models/ ./models/
 
