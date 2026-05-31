@@ -120,9 +120,10 @@ def analyze_server_metrics(
 
     if prediction_log_service.enabled:
         background_tasks.add_task(
-            prediction_log_service.save_prediction_log,
+            prediction_log_service.enqueue_prediction_log,
             feature_payload,
             prediction_label,
+            request.state.request_id,
         )
 
     return {

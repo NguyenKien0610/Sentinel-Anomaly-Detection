@@ -22,6 +22,7 @@ def test_readyz_returns_component_checks() -> None:
     assert "model" in body["checks"]
     assert "drift_monitoring" in body["checks"]
     assert "database" in body["checks"]
+    assert "redis" in body["checks"]
 
 
 def test_model_info_endpoint_returns_active_model_state() -> None:
